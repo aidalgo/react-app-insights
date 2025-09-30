@@ -1,0 +1,30 @@
+> npx
+> create-vite my-react-app
+
+│
+◇  Select a framework:
+│  React
+│
+◇  Select a variant:
+│  JavaScript
+│
+◇  Use rolldown-vite (Experimental)?:
+│  No
+│
+◇  Install with npm and start now?
+│  No
+│
+◇  Scaffolding project in /Users/andreidal/Development/my-react-app...
+│
+└  Done. Now run:
+
+  cd my-react-app
+  npm install
+  npm run dev
+
+
+    'InstrumentationKey=f3d10cd0-8868-4aa7-846e-5aa586d1f086;IngestionEndpoint=https://westus3-1.in.applicationinsights.azure.com/;LiveEndpoint=https://westus3.livediagnostics.monitor.azure.com/;ApplicationId=cd5dc394-7916-4169-b9e4-8a435572a747';
+az deployment group create \
+  --resource-group rg-apm-air \
+  --template-file workbook-template.json \
+  --parameters @workbook-parameters.json

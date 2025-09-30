@@ -1,0 +1,365 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# React App Insights Dashboard\n\nComprehensive monitoring dashboard for your React application with Application Insights integration.\n\nThis workbook tracks:\n- 📱 Navigation patterns and menu interactions\n- 📝 Contact form submissions and validation\n- ⚡ Performance metrics and page load times\n- ❌ Errors and exceptions\n- 👤 User behavior and session analytics"
+      },
+      "name": "header-text"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "Navigation & Menu Tracking",
+        "items": [
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "customEvents\n| where name == \"Navigation_MenuClick\"\n| summarize count() by tostring(customDimensions.menuItem), bin(timestamp, 1h)\n| render columnchart\n    with (title=\"Menu Clicks by Item (Hourly)\", xtitle=\"Time\", ytitle=\"Clicks\")",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "visualization": "columnchart"
+            },
+            "name": "menu-clicks-chart"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "pageViews\n| summarize users = dcount(user_Id), sessions = dcount(session_Id), page_views = count() by name\n| order by page_views desc",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "users",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "blue"
+                    }
+                  },
+                  {
+                    "columnMatch": "sessions",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "green"
+                    }
+                  },
+                  {
+                    "columnMatch": "page_views",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "orange"
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "page-stats-grid"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "customEvents\n| where name == \"Navigation_MobileMenuToggle\"\n| extend action = tostring(customDimensions.action)\n| where isnotempty(action) and action != \"\" and action != \"null\"\n| summarize count() by action, bin(timestamp, 1h)\n| render areachart\n    with (title=\"Mobile Menu Activity\", xtitle=\"Time\", ytitle=\"Toggles\")",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "visualization": "areachart"
+            },
+            "name": "mobile-menu-chart"
+          }
+        ]
+      },
+      "name": "navigation-group"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "Contact Form Analytics",
+        "items": [
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Contact Form Summary - Fixed with Union approach\nlet timeRange = ago(1d);\nlet successful = toscalar(customEvents \n    | where timestamp >= timeRange\n    | where name == \"ContactForm_SubmissionSuccess\" \n    | count);\nlet failed = toscalar(exceptions \n    | where timestamp >= timeRange\n    | where outerMessage contains \"ContactForm\" \n    | count);\nlet validation_errors = toscalar(customEvents \n    | where timestamp >= timeRange\n    | where name == \"ContactForm_ValidationError\" \n    | count);\nlet total = successful + failed + validation_errors;\nlet success_rate = iff(total > 0, round((todouble(successful) * 100.0) / todouble(total), 2), 0.0);\nunion \n    (print Metric = \"Successful Submissions\", Value = successful),\n    (print Metric = \"Failed Submissions\", Value = failed),\n    (print Metric = \"Validation Errors\", Value = validation_errors),\n    (print Metric = \"Total Attempts\", Value = total),\n    (print Metric = \"Success Rate %\", Value = success_rate)",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "visualization": "table"
+            },
+            "name": "form-summary-table"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "customEvents\n| where name in (\"ContactForm_SubmissionSuccess\", \"ContactForm_ValidationError\")\n| summarize count() by name, bin(timestamp, 1h)\n| render columnchart\n    with (title=\"Form Activity Over Time\", xtitle=\"Time\", ytitle=\"Events\")",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "visualization": "columnchart"
+            },
+            "name": "form-activity-chart"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "customEvents\n| where name == \"ContactForm_ValidationError\"\n| extend errorFields = tostring(customDimensions.errorFields)\n| where isnotempty(errorFields)\n| summarize count() by errorFields\n| order by count_ desc\n| limit 10",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "count_",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "red"
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "form-validation-errors"
+          }
+        ]
+      },
+      "name": "contact-form-group"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "Performance Metrics",
+        "items": [
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "pageViews\n| summarize avg_duration = avg(duration), \n           p50_duration = percentile(duration, 50), \n           p95_duration = percentile(duration, 95),\n           p99_duration = percentile(duration, 99)\n| project [\"Avg Load Time (ms)\"] = round(avg_duration, 2),\n          [\"50th Percentile (ms)\"] = round(p50_duration, 2),\n          [\"95th Percentile (ms)\"] = round(p95_duration, 2),\n          [\"99th Percentile (ms)\"] = round(p99_duration, 2)",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "visualization": "table"
+            },
+            "name": "performance-summary"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "pageViews\n| summarize avg(duration) by bin(timestamp, 15m)\n| render timechart\n    with (title=\"Average Page Load Time\", xtitle=\"Time\", ytitle=\"Load Time (ms)\")",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "visualization": "timechart"
+            },
+            "name": "load-time-chart"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "browserTimings\n| summarize avg_network = avg(networkDuration),\n           avg_send = avg(sendDuration),\n           avg_receive = avg(receiveDuration),\n           avg_processing = avg(processingDuration)\n           by bin(timestamp, 30m)\n| render timechart\n    with (title=\"Browser Timing Breakdown\", xtitle=\"Time\", ytitle=\"Duration (ms)\")",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "visualization": "timechart"
+            },
+            "name": "browser-timings-chart"
+          }
+        ]
+      },
+      "name": "performance-group"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "Error Monitoring & Debugging",
+        "items": [
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "exceptions\n| summarize count() by type, outerMessage\n| order by count_ desc\n| limit 20",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "count_",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "red"
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "exceptions-table"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "customEvents\n| where name startswith \"Debug\" or name contains \"Test\"\n| summarize count() by name, tostring(customDimensions.result)\n| order by count_ desc",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "count_",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "blue"
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "debug-events-table"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "// Error traces with fallback for empty tables\nlet error_traces = traces\n    | where severityLevel >= 2\n    | summarize count() by bin(timestamp, 1h);\nlet error_exceptions = exceptions\n    | where isnotempty(type)\n    | summarize count() by bin(timestamp, 1h);\nunion error_traces, error_exceptions\n| summarize total_errors = sum(count_) by timestamp\n| render columnchart\n    with (title=\"Error Traces Over Time\", xtitle=\"Time\", ytitle=\"Count\")",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "visualization": "columnchart"
+            },
+            "name": "error-traces-chart"
+          }
+        ]
+      },
+      "name": "error-monitoring-group"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "title": "User Behavior Analytics",
+        "items": [
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "customEvents\n| summarize events = count(), users = dcount(user_Id) by name\n| order by events desc",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "events",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "blue"
+                    }
+                  },
+                  {
+                    "columnMatch": "users",
+                    "formatter": 4,
+                    "formatOptions": {
+                      "palette": "green"
+                    }
+                  }
+                ]
+              }
+            },
+            "name": "event-summary-table"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "pageViews\n| summarize sessions = dcount(session_Id), page_views = count() by client_Browser\n| order by page_views desc",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "visualization": "piechart"
+            },
+            "name": "browser-distribution"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "customEvents\n| where isnotempty(session_Id)\n| summarize session_duration = max(timestamp) - min(timestamp) by session_Id\n| where session_duration > 0s\n| summarize avg_session = avg(session_duration), \n           median_session = percentile(session_duration, 50),\n           sessions_count = count()\n| project [\"Average Session (min)\"] = round(avg_session / 1m, 2),\n          [\"Median Session (min)\"] = round(median_session / 1m, 2),\n          [\"Total Sessions\"] = sessions_count",
+              "size": 0,
+              "timeContext": {
+                "durationMs": 86400000
+              },
+              "queryType": 0,
+              "resourceType": "microsoft.insights/components",
+              "visualization": "table"
+            },
+            "name": "session-analytics"
+          }
+        ]
+      },
+      "name": "user-behavior-group"
+    }
+  ],
+  "styleSettings": {},
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
