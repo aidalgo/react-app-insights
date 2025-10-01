@@ -1,0 +1,606 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## Observability Dashboard\n\nComprehensive monitoring dashboard for critical system operations including payment acknowledgments, application availability, profile monitoring, ADF batch flows, and OBS rate files.\n\n**Alert Thresholds:**\n- 🔴 Payment ACK timeout: 5 minutes\n- 🔴 Application availability issues\n- 🔴 Profile connectivity issues\n- 🔴 ADF batch flow failures"
+      },
+      "name": "header - 0"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "time-range-param",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 3600000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 1800000,
+                  "createdTime": "2025-10-01T00:00:00.000Z",
+                  "isInitialTime": false,
+                  "grain": 1,
+                  "useDashboardTimeRange": false
+                },
+                {
+                  "durationMs": 3600000,
+                  "createdTime": "2025-10-01T00:00:00.000Z",
+                  "isInitialTime": false,
+                  "grain": 1,
+                  "useDashboardTimeRange": false
+                },
+                {
+                  "durationMs": 14400000,
+                  "createdTime": "2025-10-01T00:00:00.000Z",
+                  "isInitialTime": false,
+                  "grain": 1,
+                  "useDashboardTimeRange": false
+                },
+                {
+                  "durationMs": 43200000,
+                  "createdTime": "2025-10-01T00:00:00.000Z",
+                  "isInitialTime": false,
+                  "grain": 1,
+                  "useDashboardTimeRange": false
+                },
+                {
+                  "durationMs": 86400000,
+                  "createdTime": "2025-10-01T00:00:00.000Z",
+                  "isInitialTime": false,
+                  "grain": 1,
+                  "useDashboardTimeRange": false
+                },
+                {
+                  "durationMs": 604800000,
+                  "createdTime": "2025-10-01T00:00:00.000Z",
+                  "isInitialTime": false,
+                  "grain": 1,
+                  "useDashboardTimeRange": false
+                }
+              ],
+              "allowCustom": true
+            },
+            "label": "Time Range"
+          },
+          {
+            "id": "company-filter-param",
+            "version": "KqlParameterItem/1.0",
+            "name": "CompanyFilter",
+            "type": 2,
+            "description": "Filter by company",
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "customEvents\n| where timestamp >= ago(7d)\n| where isnotempty(customDimensions.companyId)\n| summarize by CompanyId = tostring(customDimensions.companyId), CompanyName = tostring(customDimensions.companyName)\n| order by CompanyName asc\n| project value = CompanyId, label = strcat(CompanyName, ' (', CompanyId, ')'), selected = false\n| union (datatable(value:string, label:string, selected:boolean)[\n'*', 'All Companies', true\n])",
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "defaultValue": "value::1",
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          },
+          {
+            "id": "payment-type-filter-param",
+            "version": "KqlParameterItem/1.0",
+            "name": "PaymentTypeFilter",
+            "type": 2,
+            "description": "Filter by payment type",
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "datatable(value:string, label:string, selected:boolean)[\n'*', 'All Payment Types', true,\n'WIRE', 'Wire Transfer', false,\n'ACH', 'ACH', false,\n'CHECK', 'Check', false\n]",
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "defaultValue": "value::1",
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          },
+          {
+            "id": "environment-filter-param",
+            "version": "KqlParameterItem/1.0",
+            "name": "EnvironmentFilter",
+            "type": 2,
+            "description": "Filter by environment",
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "customEvents\n| where timestamp >= ago(7d)\n| extend Environment = tostring(customDimensions.environment)\n| where isnotempty(Environment)\n| summarize by Environment\n| order by Environment asc\n| project value = Environment, label = Environment, selected = false\n| union (datatable(value:string, label:string, selected:boolean)[\n'*', 'All Environments', true\n])",
+            "typeSettings": {
+              "additionalResourceOptions": [],
+              "showDefault": false
+            },
+            "defaultValue": "value::1",
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "global-parameters"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## 💳 Payment Monitoring\n\nMonitoring payment initiation and acknowledgment from JGPS. **Alert triggered when no ACK received within 5 minutes.**"
+      },
+      "name": "payment-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let timeoutThreshold = 5m;\nlet paymentInitiations = customEvents\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name startswith 'Payments_' and name contains 'Submit'\n| where '*' in ({CompanyFilter}) or tostring(customDimensions.companyId) in ({CompanyFilter})\n| where '*' in ({PaymentTypeFilter}) or tostring(customDimensions.paymentType) in ({PaymentTypeFilter})\n| where '*' in ({EnvironmentFilter}) or tostring(customDimensions.environment) in ({EnvironmentFilter})\n| extend PaymentId = strcat(tostring(customDimensions.companyId), '-', tostring(customDimensions.transactionId), '-', format_datetime(timestamp, 'yyyyMMddHHmmss'))\n| project InitiationTime = timestamp, PaymentId, CompanyId = tostring(customDimensions.companyId), CompanyName = tostring(customDimensions.companyName), PaymentType = tostring(customDimensions.paymentType), Amount = todouble(customDimensions.amount), Currency = tostring(customDimensions.currency);\nlet paymentAcks = customEvents\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name contains 'ACK' or name contains 'Acknowledgment' or name contains 'Response'\n| extend PaymentId = strcat(tostring(customDimensions.companyId), '-', tostring(customDimensions.transactionId), '-', format_datetime(timestamp, 'yyyyMMddHHmmss'))\n| project AckTime = timestamp, PaymentId;\npaymentInitiations\n| join kind=leftouter (paymentAcks) on PaymentId\n| extend TimeSinceInitiation = datetime_diff('minute', coalesce(AckTime, now()), InitiationTime)\n| extend Status = case(\n    isnotempty(AckTime), '✅ ACK Received',\n    TimeSinceInitiation >= 5, '🔴 TIMEOUT - No ACK',\n    '⏳ Pending'\n)\n| summarize \n    TotalPayments = count(),\n    AckReceived = countif(Status == '✅ ACK Received'),\n    Timeouts = countif(Status == '🔴 TIMEOUT - No ACK'),\n    Pending = countif(Status == '⏳ Pending'),\n    TotalAmount = sum(Amount)\n| extend TimeoutRate = round(todouble(Timeouts) / todouble(TotalPayments) * 100, 2)\n| project Metric = 'Summary', TotalPayments, AckReceived, Timeouts, Pending, TimeoutRate, TotalAmount\n| evaluate narrow()\n| extend Title = case(\n    Column == 'TotalPayments', '📊 Total Payments',\n    Column == 'AckReceived', '✅ ACK Received',\n    Column == 'Timeouts', '🔴 Timeouts (>5min)',\n    Column == 'Pending', '⏳ Pending',\n    Column == 'TimeoutRate', '⚠️ Timeout Rate',\n    Column == 'TotalAmount', '💰 Total Amount',\n    Column\n)\n| project Title, Value",
+        "size": 3,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Title",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Value",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true,
+                "maximumFractionDigits": 2
+              }
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "name": "payment-summary-tiles"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let timeoutThreshold = 5m;\nlet paymentInitiations = customEvents\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name startswith \"Payments_\" and name contains \"Submit\"\n| extend CompanyId = tostring(customDimensions.companyId),\n         TransactionId = tostring(customDimensions.transactionId),\n         CompanyName = tostring(customDimensions.companyName),\n         PaymentType = tostring(customDimensions.paymentType),\n         Amount = todouble(customDimensions.amount),\n         Currency = tostring(customDimensions.currency),\n         BeneficiaryId = tostring(customDimensions.beneficiaryId),\n         Environment = tostring(customDimensions.environment)\n| where \"*\" in ({CompanyFilter}) or CompanyId in ({CompanyFilter})\n| where \"*\" in ({PaymentTypeFilter}) or PaymentType in ({PaymentTypeFilter})\n| where \"*\" in ({EnvironmentFilter}) or Environment in ({EnvironmentFilter})\n| project InitiationTime = timestamp, CompanyId, TransactionId, CompanyName, PaymentType, Amount, Currency, BeneficiaryId;\nlet paymentAcks = customEvents\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name contains \"ACK\" or name contains \"Acknowledgment\" or name contains \"Response\"\n| extend CompanyId = tostring(customDimensions.companyId),\n         TransactionId = tostring(customDimensions.transactionId)\n| project AckTime = timestamp, CompanyId, TransactionId;\npaymentInitiations\n| join kind=leftouter paymentAcks on CompanyId, TransactionId\n| extend Age = coalesce(AckTime, now()) - InitiationTime\n| extend Status = case(\n    isnotempty(AckTime), \"✅ ACK Received\",\n    Age >= timeoutThreshold, \"🔴 TIMEOUT\",\n    \"⏳ Pending\"\n)\n| where Status == \"🔴 TIMEOUT\"\n| project\n    [\"Initiation Time\"] = InitiationTime,\n    [\"Company\"] = strcat(CompanyName, \" (\", CompanyId, \")\"),\n    [\"Payment ID\"] = strcat(CompanyId, \"-\", TransactionId),\n    [\"Type\"] = PaymentType,\n    [\"Amount\"] = strcat(Currency, \" \", tostring(round(Amount, 2))),\n    [\"Beneficiary\"] = BeneficiaryId,\n    [\"Minutes Since Initiation\"] = toint(Age / 1m),\n    [\"Status\"] = Status\n| order by [\"Initiation Time\"] desc",
+        "size": 0,
+        "title": "🔴 Payment Timeouts - No ACK Received (>5 minutes)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Status",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "TIMEOUT",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "blue",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Minutes Since Initiation",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "red"
+              }
+            }
+          ],
+          "filter": true,
+          "sortBy": [
+            {
+              "itemKey": "Initiation Time",
+              "sortOrder": 2
+            }
+          ]
+        },
+        "sortBy": [
+          {
+            "itemKey": "Initiation Time",
+            "sortOrder": 2
+          }
+        ]
+      },
+      "name": "payment-timeout-details"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let timeoutThreshold = 5m;\nlet paymentInitiations = customEvents\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name startswith 'Payments_' and name contains 'Submit'\n| where '*' in ({CompanyFilter}) or tostring(customDimensions.companyId) in ({CompanyFilter})\n| where '*' in ({PaymentTypeFilter}) or tostring(customDimensions.paymentType) in ({PaymentTypeFilter})\n| where '*' in ({EnvironmentFilter}) or tostring(customDimensions.environment) in ({EnvironmentFilter})\n| extend PaymentId = strcat(tostring(customDimensions.companyId), '-', tostring(customDimensions.transactionId), '-', format_datetime(timestamp, 'yyyyMMddHHmmss'))\n| project InitiationTime = timestamp, PaymentId, PaymentType = tostring(customDimensions.paymentType);\nlet paymentAcks = customEvents\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name contains 'ACK' or name contains 'Acknowledgment' or name contains 'Response'\n| extend PaymentId = strcat(tostring(customDimensions.companyId), '-', tostring(customDimensions.transactionId), '-', format_datetime(timestamp, 'yyyyMMddHHmmss'))\n| project AckTime = timestamp, PaymentId;\npaymentInitiations\n| join kind=leftouter (paymentAcks) on PaymentId\n| extend TimeSinceInitiation = datetime_diff('minute', coalesce(AckTime, now()), InitiationTime)\n| extend Status = case(\n    isnotempty(AckTime), 'ACK Received',\n    TimeSinceInitiation >= 5, 'TIMEOUT',\n    'Pending'\n)\n| summarize Count = count() by bin(InitiationTime, 5m), Status\n| order by InitiationTime asc",
+        "size": 0,
+        "title": "Payment Status Over Time",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "TIMEOUT",
+              "color": "redBright"
+            },
+            {
+              "seriesName": "ACK Received",
+              "color": "green"
+            },
+            {
+              "seriesName": "Pending",
+              "color": "orange"
+            }
+          ]
+        }
+      },
+      "name": "payment-status-chart"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## 🌐 Application Availability Monitoring\n\nMonitoring application health checks and availability tests for internal web apps and CMS custom URLs."
+      },
+      "name": "availability-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "availabilityResults\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| summarize \n    TotalTests = count(),\n    SuccessfulTests = countif(success == true),\n    FailedTests = countif(success == false),\n    AvgDuration = avg(duration),\n    AvailabilityRate = round(todouble(countif(success == true)) / todouble(count()) * 100, 2)\n| project Metric = 'Availability', TotalTests, SuccessfulTests, FailedTests, AvgDuration, AvailabilityRate\n| evaluate narrow()\n| extend Title = case(\n    Column == 'TotalTests', '📊 Total Tests',\n    Column == 'SuccessfulTests', '✅ Successful',\n    Column == 'FailedTests', '❌ Failed',\n    Column == 'AvgDuration', '⏱️ Avg Duration (ms)',\n    Column == 'AvailabilityRate', '📈 Availability %',\n    Column\n)\n| project Title, Value",
+        "size": 3,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Title",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Value",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true,
+                "maximumFractionDigits": 2
+              }
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "name": "availability-summary-tiles"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "availabilityResults\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where success == false\n| project \n    ['Timestamp'] = timestamp,\n    ['Test Name'] = name,\n    ['Location'] = location,\n    ['Duration (ms)'] = duration,\n    ['Message'] = message,\n    ['URL'] = tostring(customDimensions.Url)\n| order by ['Timestamp'] desc",
+        "size": 0,
+        "title": "❌ Failed Availability Tests",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Duration (ms)",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "red"
+              }
+            }
+          ],
+          "filter": true
+        }
+      },
+      "name": "availability-failures"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "availabilityResults\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| summarize SuccessRate = round(todouble(countif(success == true)) / todouble(count()) * 100, 2) by bin(timestamp, 5m), name\n| order by timestamp asc",
+        "size": 0,
+        "title": "Availability Rate Over Time by Test",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart",
+        "chartSettings": {
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true,
+                "maximumFractionDigits": 2
+              }
+            },
+            "min": 0,
+            "max": 100
+          }
+        }
+      },
+      "name": "availability-chart"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## 👤 Profile Monitoring\n\nReal-time monitoring for profile-related issues and ADF batch flow connectivity."
+      },
+      "name": "profile-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union customEvents, exceptions, traces\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name contains 'Profile' or message contains 'profile' or message contains 'Profile'\n    or customDimensions contains 'profile' or customDimensions contains 'Profile'\n| extend Severity = case(\n    itemType == 'exception', '🔴 Error',\n    severityLevel >= 3, '🔴 Error',\n    severityLevel == 2, '⚠️ Warning',\n    '✅ Info'\n)\n| extend IssueType = case(\n    message contains 'timeout' or message contains 'Timeout', 'Timeout',\n    message contains 'connection' or message contains 'Connection' or message contains 'connectivity', 'Connectivity',\n    message contains 'ADF' or message contains 'batch', 'ADF Batch',\n    message contains 'error' or message contains 'Error' or itemType == 'exception', 'Error',\n    'Other'\n)\n| summarize \n    TotalIssues = count(),\n    Errors = countif(Severity == '🔴 Error'),\n    Warnings = countif(Severity == '⚠️ Warning'),\n    TimeoutIssues = countif(IssueType == 'Timeout'),\n    ConnectivityIssues = countif(IssueType == 'Connectivity'),\n    ADFBatchIssues = countif(IssueType == 'ADF Batch')\n| evaluate narrow()\n| extend Title = case(\n    Column == 'TotalIssues', '📊 Total Issues',\n    Column == 'Errors', '🔴 Errors',\n    Column == 'Warnings', '⚠️ Warnings',\n    Column == 'TimeoutIssues', '⏱️ Timeouts',\n    Column == 'ConnectivityIssues', '🔌 Connectivity',\n    Column == 'ADFBatchIssues', '📦 ADF Batch',\n    Column\n)\n| project Title, Value",
+        "size": 3,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Title",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Value",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true
+              }
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "name": "profile-summary-tiles"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union customEvents, exceptions, traces\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name contains 'Profile' or message contains 'profile' or message contains 'Profile'\n    or customDimensions contains 'profile' or customDimensions contains 'Profile'\n| extend Severity = case(\n    itemType == 'exception', '🔴 Error',\n    severityLevel >= 3, '🔴 Error',\n    severityLevel == 2, '⚠️ Warning',\n    '✅ Info'\n)\n| extend IssueType = case(\n    message contains 'timeout' or message contains 'Timeout', 'Timeout',\n    message contains 'connection' or message contains 'Connection' or message contains 'connectivity', 'Connectivity',\n    message contains 'ADF' or message contains 'batch', 'ADF Batch',\n    message contains 'error' or message contains 'Error' or itemType == 'exception', 'Error',\n    'Other'\n)\n| where Severity == '🔴 Error' or Severity == '⚠️ Warning'\n| project \n    ['Timestamp'] = timestamp,\n    ['Severity'] = Severity,\n    ['Issue Type'] = IssueType,\n    ['Event Type'] = itemType,\n    ['Name'] = name,\n    ['Message'] = coalesce(message, tostring(customDimensions.message), ''),\n    ['Operation'] = operation_Name\n| order by ['Timestamp'] desc",
+        "size": 0,
+        "title": "🔍 Profile Issues - Errors and Warnings",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Severity",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "🔴",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "⚠️",
+                    "representation": "orange",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "blue",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ],
+          "filter": true
+        }
+      },
+      "name": "profile-issues-table"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union customEvents, exceptions, traces\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where message contains 'ADF' or message contains 'batch' or message contains 'Batch'\n    or name contains 'ADF' or name contains 'batch' or name contains 'Batch'\n| extend Severity = case(\n    itemType == 'exception', 'Error',\n    severityLevel >= 3, 'Error',\n    severityLevel == 2, 'Warning',\n    'Info'\n)\n| summarize Count = count() by bin(timestamp, 10m), Severity\n| order by timestamp asc",
+        "size": 0,
+        "title": "ADF Batch Flow Issues Over Time",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "Error",
+              "color": "redBright"
+            },
+            {
+              "seriesName": "Warning",
+              "color": "orange"
+            },
+            {
+              "seriesName": "Info",
+              "color": "blue"
+            }
+          ]
+        }
+      },
+      "name": "adf-issues-chart"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## 📄 OBS Rate Files Monitoring\n\nMonitoring OBS rate file processing and related operations."
+      },
+      "name": "obs-header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union customEvents, traces\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name contains 'OBS' or name contains 'Rate' or name contains 'File'\n    or message contains 'OBS' or message contains 'rate file' or message contains 'Rate File'\n| extend Status = case(\n    message contains 'success' or message contains 'Success' or message contains 'completed', '✅ Success',\n    message contains 'error' or message contains 'Error' or message contains 'failed', '❌ Failed',\n    message contains 'processing' or message contains 'Processing', '⏳ Processing',\n    '📝 Other'\n)\n| summarize \n    TotalEvents = count(),\n    Successful = countif(Status == '✅ Success'),\n    Failed = countif(Status == '❌ Failed'),\n    Processing = countif(Status == '⏳ Processing')\n| evaluate narrow()\n| extend Title = case(\n    Column == 'TotalEvents', '📊 Total Events',\n    Column == 'Successful', '✅ Successful',\n    Column == 'Failed', '❌ Failed',\n    Column == 'Processing', '⏳ Processing',\n    Column\n)\n| project Title, Value",
+        "size": 3,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Title",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Value",
+            "formatter": 12,
+            "formatOptions": {
+              "palette": "auto"
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true
+              }
+            }
+          },
+          "showBorder": true
+        }
+      },
+      "name": "obs-summary-tiles"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union customEvents, traces, exceptions\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name contains 'OBS' or name contains 'Rate' or name contains 'File'\n    or message contains 'OBS' or message contains 'rate file' or message contains 'Rate File'\n| extend Status = case(\n    message contains 'success' or message contains 'Success' or message contains 'completed', '✅ Success',\n    message contains 'error' or message contains 'Error' or message contains 'failed' or itemType == 'exception', '❌ Failed',\n    message contains 'processing' or message contains 'Processing', '⏳ Processing',\n    '📝 Other'\n)\n| project \n    ['Timestamp'] = timestamp,\n    ['Status'] = Status,\n    ['Event Type'] = itemType,\n    ['Name'] = name,\n    ['Message'] = coalesce(message, tostring(customDimensions.message), ''),\n    ['Operation'] = operation_Name,\n    ['Duration'] = tostring(customMeasurements.duration)\n| order by ['Timestamp'] desc",
+        "size": 0,
+        "title": "OBS Rate Files - Event Details",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Status",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "❌",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "⏳",
+                    "representation": "orange",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "contains",
+                    "thresholdValue": "✅",
+                    "representation": "green",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "thresholdValue": null,
+                    "representation": "blue",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ],
+          "filter": true
+        }
+      },
+      "name": "obs-details-table"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union customEvents, traces\n| where timestamp >= {TimeRange:start} and timestamp <= {TimeRange:end}\n| where name contains 'OBS' or name contains 'Rate' or name contains 'File'\n    or message contains 'OBS' or message contains 'rate file' or message contains 'Rate File'\n| extend Status = case(\n    message contains 'success' or message contains 'Success' or message contains 'completed', 'Success',\n    message contains 'error' or message contains 'Error' or message contains 'failed', 'Failed',\n    message contains 'processing' or message contains 'Processing', 'Processing',\n    'Other'\n)\n| summarize Count = count() by bin(timestamp, 10m), Status\n| order by timestamp asc",
+        "size": 0,
+        "title": "OBS Rate Files Processing Over Time",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "areachart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "Failed",
+              "color": "redBright"
+            },
+            {
+              "seriesName": "Success",
+              "color": "green"
+            },
+            {
+              "seriesName": "Processing",
+              "color": "orange"
+            },
+            {
+              "seriesName": "Other",
+              "color": "blue"
+            }
+          ]
+        }
+      },
+      "name": "obs-chart"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "---\n## 📋 Summary & Recommendations\n\n### Alert Configuration Recommendations:\n1. **Payment Timeouts**: Configure metric alert when timeout count > 0\n2. **Availability**: Configure alert when availability rate < 95%\n3. **Profile Issues**: Configure alert on any error-level events\n4. **ADF Batch**: Configure alert on connectivity failures\n5. **OBS Rate Files**: Configure alert on failed processing events\n\n### Next Steps:\n- Review timeout trends and adjust JGPS integration if needed\n- Verify availability test coverage for all critical endpoints\n- Set up action groups for email notifications to prod support/operations team"
+      },
+      "name": "summary-text"
+    }
+  ],
+  "fallbackResourceIds": [
+    "${subscription_id}/resourceGroups/${resource_group_name}/providers/microsoft.insights/components/${application_insights_name}"
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

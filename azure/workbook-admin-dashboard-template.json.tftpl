@@ -1,0 +1,528 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## Admin Dashboard\n\nThis dashboard tracks key administrative activities including user creation, company onboarding, and authentication metrics. Use the filters below to customize the time range and view specific metrics.\n"
+      },
+      "name": "text - 0"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "b8e3f7c1-2d4a-4b5c-8e9f-1a2b3c4d5e6f",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 2592000000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 1209600000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 5184000000
+                },
+                {
+                  "durationMs": 7776000000
+                }
+              ],
+              "allowCustom": true
+            }
+          },
+          {
+            "id": "c9f4e8d2-3e5b-4c6d-9f0a-2b3c4d5e6f7a",
+            "version": "KqlParameterItem/1.0",
+            "name": "OtherFilters",
+            "type": 1,
+            "description": "A KQL snippet that further filters the data. Example: | where customDimensions.sunId == '100001'"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters - 1"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Key Metrics Summary\nOverview of admin activities for the selected time period."
+      },
+      "name": "text - 2"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\nlet usersCreated = customEvents\n| where timestamp >= start\n| where name == 'Admin_Approve_New_User_Click_Success'\n| where customDimensions.result == 'Success'\n{OtherFilters}\n| summarize Value = count();\nlet sunidsOnboarded = customEvents\n| where timestamp >= start\n| where name == 'InternalAdmin_CompanyOnboarding_Click_OnboardCompany'\n{OtherFilters}\n| summarize Value = dcount(tostring(customDimensions.submittedSunId));\nlet uniqueLogins = customEvents\n| where timestamp >= start\n| where name == 'Auth_Login_Success'\n{OtherFilters}\n| summarize Value = dcount(tostring(customDimensions.sunId));\nunion \n  (usersCreated | extend Title = 'Users Created', SubTitle = 'Total approved users'),\n  (sunidsOnboarded | extend Title = 'SUNIDs Onboarded', SubTitle = 'Unique companies'),\n  (uniqueLogins | extend Title = 'Unique Logins', SubTitle = 'Distinct SUNIDs')\n| project Title, SubTitle, Metric = Value",
+        "size": 3,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Title",
+            "formatter": 1,
+            "formatOptions": {
+              "showIcon": true
+            }
+          },
+          "subtitleContent": {
+            "columnMatch": "SubTitle",
+            "formatOptions": {
+              "showIcon": true
+            }
+          },
+          "leftContent": {
+            "columnMatch": "Metric",
+            "formatter": 12,
+            "formatOptions": {
+              "min": 0,
+              "showIcon": true
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "style": "decimal",
+                "maximumFractionDigits": 2,
+                "maximumSignificantDigits": 3
+              }
+            }
+          },
+          "showBorder": false
+        }
+      },
+      "name": "query - 3"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Users Created Per Day\nDaily count of users created through the admin portal."
+      },
+      "name": "text - 4"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "d1e5f9a3-4b6c-5d7e-0f1a-3b4c5d6e7f8a",
+            "version": "KqlParameterItem/1.0",
+            "name": "UserCreationSplitBy",
+            "type": 2,
+            "isRequired": true,
+            "query": "datatable(value:string, text:string)[\n'tostring(customDimensions.createdByUserId)', '👤 Created By User ID',\n'tostring(customDimensions.sunId)', '🏢 SUNID',\n'tostring(customDimensions.roleName)', '🔑 Role Name',\n'tostring(customDimensions.page)', '📄 Page'\n]",
+            "value": "tostring(customDimensions.sunId)",
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters - 5"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Admin_Approve_New_User_Click_Success'\n| where customDimensions.result == 'Success'\n{OtherFilters}\n| summarize ['Users Created'] = count() by Day = bin(timestamp, 1d)\n| order by Day asc",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Users Created Over Time",
+        "color": "blue",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "Users Created",
+              "color": "blue"
+            }
+          ],
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true
+              }
+            }
+          }
+        }
+      },
+      "name": "query - 6"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Admin_Approve_New_User_Click_Success'\n| where customDimensions.result == 'Success'\n{OtherFilters}\n| extend SplitBy = {UserCreationSplitBy}\n| summarize ['Users Created'] = count(), \n            ['Created User IDs'] = make_set(tostring(customDimensions.createdUserId), 100),\n            ['Sample Emails'] = make_set(tostring(customDimensions.createdUserEmail), 5)\n            by SplitBy\n| extend ['Sample Emails'] = strcat_array(['Sample Emails'], ', ')\n| extend ['User ID Count'] = array_length(['Created User IDs'])\n| project-away ['Created User IDs']\n| order by ['Users Created'] desc\n| project ['Group'] = strcat('🔹 ', SplitBy), ['Users Created'], ['User ID Count'], ['Sample Emails']",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "User Creation Details",
+        "exportFieldName": "Group",
+        "exportParameterName": "UserCreationFilter",
+        "exportDefaultValue": "All",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Users Created",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "blue",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            },
+            {
+              "columnMatch": "User ID Count",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "purple",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Sample Emails",
+              "formatter": 0,
+              "formatOptions": {
+                "showIcon": true
+              }
+            }
+          ],
+          "filter": true
+        }
+      },
+      "name": "query - 7"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## SUNIDs Onboarded Per Day\nDaily count of distinct SUNIDs (companies) onboarded."
+      },
+      "name": "text - 8"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "e2f6a0b4-5c7d-6e8f-1a2b-4c5d6e7f8a9b",
+            "version": "KqlParameterItem/1.0",
+            "name": "OnboardingSplitBy",
+            "type": 2,
+            "isRequired": true,
+            "query": "datatable(value:string, text:string)[\n'tostring(customDimensions.userId)', '👤 Admin User ID',\n'tostring(customDimensions.sunId)', '🏢 Admin SUNID',\n'tostring(customDimensions.branchId)', '🏪 Branch ID',\n'tostring(customDimensions.page)', '📄 Page'\n]",
+            "value": "tostring(customDimensions.userId)",
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters - 9"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'InternalAdmin_CompanyOnboarding_Click_OnboardCompany'\n{OtherFilters}\n| summarize ['SUNIDs Onboarded'] = dcount(tostring(customDimensions.submittedSunId)) by Day = bin(timestamp, 1d)\n| order by Day asc",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "SUNIDs Onboarded Over Time",
+        "color": "green",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "SUNIDs Onboarded",
+              "color": "green"
+            }
+          ],
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true
+              }
+            }
+          }
+        }
+      },
+      "name": "query - 10"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'InternalAdmin_CompanyOnboarding_Click_OnboardCompany'\n{OtherFilters}\n| extend SplitBy = {OnboardingSplitBy}\n| summarize ['Total Events'] = count(),\n            ['Unique SUNIDs'] = dcount(tostring(customDimensions.submittedSunId)),\n            ['Sample SUNIDs'] = make_set(tostring(customDimensions.submittedSunId), 10)\n            by SplitBy\n| extend ['Sample SUNIDs Text'] = strcat_array(['Sample SUNIDs'], ', ')\n| project-away ['Sample SUNIDs']\n| order by ['Unique SUNIDs'] desc\n| project ['Group'] = strcat('🔹 ', SplitBy), ['Total Events'], ['Unique SUNIDs'], ['Sample SUNIDs'] = ['Sample SUNIDs Text']",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Company Onboarding Details",
+        "exportFieldName": "Group",
+        "exportParameterName": "OnboardingFilter",
+        "exportDefaultValue": "All",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Total Events",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "orange",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Unique SUNIDs",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "green",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            },
+            {
+              "columnMatch": "Sample SUNIDs",
+              "formatter": 0,
+              "formatOptions": {
+                "showIcon": true
+              }
+            }
+          ],
+          "filter": true
+        }
+      },
+      "name": "query - 11"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## SUNIDs Logging In Per Day\nDaily count of distinct SUNIDs with successful authentication."
+      },
+      "name": "text - 12"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "f3a7b1c5-6d8e-7f9a-2b3c-5d6e7f8a9b0c",
+            "version": "KqlParameterItem/1.0",
+            "name": "LoginSplitBy",
+            "type": 2,
+            "isRequired": true,
+            "query": "datatable(value:string, text:string)[\n'tostring(customDimensions.sunId)', '🏢 SUNID',\n'client_CountryOrRegion', '📍 Country or Region',\n'client_StateOrProvince', '📍 State or Province',\n'client_City', '📍 City',\n'client_Browser', '🌐 Client Browser',\n'client_OS', '🖥️ Client Operating System'\n]",
+            "value": "tostring(customDimensions.sunId)",
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters - 13"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Auth_Login_Success'\n{OtherFilters}\n| summarize ['Unique SUNIDs'] = dcount(tostring(customDimensions.sunId)),\n            ['Total Logins'] = count()\n            by Day = bin(timestamp, 1d)\n| order by Day asc",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Login Activity Over Time",
+        "color": "purple",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "linechart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "Unique SUNIDs",
+              "color": "purple"
+            },
+            {
+              "seriesName": "Total Logins",
+              "color": "blueDark"
+            }
+          ],
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true
+              }
+            }
+          }
+        }
+      },
+      "name": "query - 14"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Auth_Login_Success'\n{OtherFilters}\n| extend SplitBy = {LoginSplitBy}\n| summarize ['Total Logins'] = count(),\n            ['Unique SUNIDs'] = dcount(tostring(customDimensions.sunId)),\n            ['Unique Users'] = dcount(user_Id),\n            ['Unique Sessions'] = dcount(session_Id)\n            by SplitBy\n| order by ['Unique SUNIDs'] desc\n| project ['Group'] = strcat('🔹 ', SplitBy), ['Total Logins'], ['Unique SUNIDs'], ['Unique Users'], ['Unique Sessions']",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Login Activity Details",
+        "exportFieldName": "Group",
+        "exportParameterName": "LoginFilter",
+        "exportDefaultValue": "All",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Total Logins",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "blue",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Unique SUNIDs",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "purple",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            },
+            {
+              "columnMatch": "Unique Users",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "green",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Unique Sessions",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "orange",
+                "showIcon": true
+              }
+            }
+          ],
+          "filter": true
+        }
+      },
+      "name": "query - 15"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## All Admin Activities Combined\nCombined view of all tracked admin activities."
+      },
+      "name": "text - 16"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name in ('Admin_Approve_New_User_Click_Success', 'InternalAdmin_CompanyOnboarding_Click_OnboardCompany', 'Auth_Login_Success')\n{OtherFilters}\n| extend Activity = case(\n    name == 'Admin_Approve_New_User_Click_Success', '👤 User Created',\n    name == 'InternalAdmin_CompanyOnboarding_Click_OnboardCompany', '🏢 SUNID Onboarded',\n    name == 'Auth_Login_Success', '🔐 Login',\n    'Other'\n)\n| summarize Count = count() by Day = bin(timestamp, 1d), Activity\n| order by Day asc",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "All Admin Activities Timeline",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "areachart",
+        "chartSettings": {
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true
+              }
+            }
+          }
+        }
+      },
+      "name": "query - 17"
+    }
+  ],
+  "fallbackResourceIds": [
+    "${subscription_id}/resourceGroups/${resource_group_name}/providers/microsoft.insights/components/${application_insights_name}"
+  ],
+  "fromTemplateId": "custom-AdminDashboard",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

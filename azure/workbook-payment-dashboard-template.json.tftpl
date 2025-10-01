@@ -1,0 +1,679 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## Payment Dashboard\n\nThis dashboard tracks payment activities including wire payments and beneficiary management. Use the filters below to customize the time range and view specific metrics.\n"
+      },
+      "name": "text - 0"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 2592000000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 1209600000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 5184000000
+                },
+                {
+                  "durationMs": 7776000000
+                }
+              ],
+              "allowCustom": true
+            }
+          },
+          {
+            "id": "b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e",
+            "version": "KqlParameterItem/1.0",
+            "name": "PaymentType",
+            "type": 2,
+            "isRequired": true,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "query": "customEvents\n| where timestamp >= ago(7d)\n| where name == 'Payments_InitiationReview_Click_Submit'\n| summarize count() by PaymentType = tostring(customDimensions.paymentType)\n| order by count_ desc\n| project Id=PaymentType, Title=PaymentType, Selected=case(PaymentType == 'WIRE', true, false)\n| union (\ndatatable(Id:string, Title:string, Selected:boolean)[\n'*', 'All Payment Types', false\n]\n)",
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          },
+          {
+            "id": "c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f",
+            "version": "KqlParameterItem/1.0",
+            "name": "OtherFilters",
+            "type": 1,
+            "description": "A KQL snippet that further filters the data. Example: | where customDimensions.sunId == '100001'"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters - 1"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "### Key Metrics Summary\nOverview of payment activities for the selected time period."
+      },
+      "name": "text - 2"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "// Duration from workbook TimeRange parameter\nlet duration = {TimeRange:end} - {TimeRange:start};\nlet startTime = ago(duration);\n\n// Base successful submissions for selected (or all) payment types\nlet base =\n    customEvents\n    | where timestamp between (startTime .. now())\n    | where name == 'Payments_InitiationReview_Click_Submit'\n    | where tostring(customDimensions.transactionStatus) == 'Submitted'\n    {OtherFilters}\n    | where ('*' in ({PaymentType}) or tostring(customDimensions.paymentType) in ({PaymentType}));\n\n// Typed fields\nlet enriched =\n    base\n    | extend Amount               = coalesce(todouble(customDimensions.amount), 0.0),\n             BeneficiariesAdded   = coalesce(toint(customDimensions.beneficiariesAdded), 0),\n             BeneficiariesUpdated = coalesce(toint(customDimensions.beneficiariesUpdated), 0);\n\n// Single aggregate (may yield 0 rows if no events)\nlet agg =\n    enriched\n    | summarize WirePayments = count(),\n                TotalNotional = sum(Amount),\n                BeneficiariesSaved = sum(BeneficiariesAdded) + sum(BeneficiariesUpdated);\n\n// Turn aggregate into metric rows\nlet metrics = union\n    (agg | project Title='Wire Payments',       SubTitle='Total submissions',       Metric=toreal(WirePayments)),\n    (agg | project Title='Total Notional',      SubTitle='Sum of payment amounts',  Metric=coalesce(TotalNotional, 0.0)),\n    (agg | project Title='Beneficiaries Saved', SubTitle='Added + Updated',         Metric=toreal(BeneficiariesSaved));\n\n// Fallback rows (ensures 3 rows even if agg empty)\nlet fallback = datatable(Title:string, SubTitle:string, Metric:real) [\n    'Wire Payments','Total submissions',0,\n    'Total Notional','Sum of payment amounts',0,\n    'Beneficiaries Saved','Added + Updated',0\n];\n\n// Merge and keep the non-zero (or actual) values\nunion metrics, fallback\n| summarize Metric = max(Metric) by Title, SubTitle\n| order by Title asc",
+        "size": 3,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Title",
+            "formatter": 1,
+            "formatOptions": {
+              "showIcon": true
+            }
+          },
+          "subtitleContent": {
+            "columnMatch": "SubTitle",
+            "formatOptions": {
+              "showIcon": true
+            }
+          },
+          "leftContent": {
+            "columnMatch": "Metric",
+            "formatter": 12,
+            "formatOptions": {
+              "min": 0,
+              "showIcon": true
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "style": "decimal",
+                "maximumFractionDigits": 2,
+                "maximumSignificantDigits": 3
+              }
+            }
+          },
+          "showBorder": false
+        }
+      },
+      "name": "query - 3"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Wire Payments Per Day\nDaily count of wire payments submitted through the portal."
+      },
+      "name": "text - 4"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a",
+            "version": "KqlParameterItem/1.0",
+            "name": "WirePaymentSplitBy",
+            "type": 2,
+            "isRequired": true,
+            "query": "datatable(value:string, text:string)[\n'tostring(customDimensions.currency)', '💰 Currency',\n'tostring(customDimensions.sunId)', '🏢 SUNID',\n'tostring(customDimensions.companyName)', '🏢 Company Name',\n'tostring(customDimensions.branchId)', '🏪 Branch ID',\n'tostring(customDimensions.userId)', '👤 User ID',\n'tostring(customDimensions.transactionStatus)', '📊 Transaction Status'\n]",
+            "value": "tostring(customDimensions.currency)",
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters - 5"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Payments_InitiationReview_Click_Submit'\n| where tostring(customDimensions.paymentType) in ({PaymentType}) or '*' in ({PaymentType})\n| where customDimensions.transactionStatus == 'Submitted'\n{OtherFilters}\n| summarize ['Wire Payments'] = count() by Day = bin(timestamp, 1d)\n| order by Day asc",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Wire Payments Over Time",
+        "color": "blue",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "Wire Payments",
+              "color": "blue"
+            }
+          ],
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true
+              }
+            }
+          }
+        }
+      },
+      "name": "query - 6"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Payments_InitiationReview_Click_Submit'\n| where tostring(customDimensions.paymentType) in ({PaymentType}) or '*' in ({PaymentType})\n| where customDimensions.transactionStatus == 'Submitted'\n{OtherFilters}\n| extend SplitBy = {WirePaymentSplitBy}\n| extend Amount = todouble(customDimensions.amount)\n| summarize ['Payment Count'] = count(),\n            ['Total Amount'] = sum(Amount),\n            ['Average Amount'] = avg(Amount),\n            ['Min Amount'] = min(Amount),\n            ['Max Amount'] = max(Amount),\n            ['Unique Users'] = dcount(tostring(customDimensions.userId)),\n            ['Unique Companies'] = dcount(tostring(customDimensions.sunId))\n            by SplitBy\n| order by ['Payment Count'] desc\n| project ['Group'] = strcat('🔹 ', SplitBy), ['Payment Count'], ['Total Amount'], ['Average Amount'], ['Min Amount'], ['Max Amount'], ['Unique Users'], ['Unique Companies']",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Wire Payment Details",
+        "exportFieldName": "Group",
+        "exportParameterName": "WirePaymentFilter",
+        "exportDefaultValue": "All",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Payment Count",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "blue",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Total Amount",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "green",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "Average Amount",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "yellow",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "Min Amount",
+              "formatter": 0,
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "Max Amount",
+              "formatter": 0,
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "Unique Users",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "purple",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Unique Companies",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "orange",
+                "showIcon": true
+              }
+            }
+          ],
+          "filter": true
+        }
+      },
+      "name": "query - 7"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Total Notional (Payment Amounts) Per Day\nSum of payment amounts submitted each day."
+      },
+      "name": "text - 8"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a0b",
+            "version": "KqlParameterItem/1.0",
+            "name": "NotionalSplitBy",
+            "type": 2,
+            "isRequired": true,
+            "query": "datatable(value:string, text:string)[\n'tostring(customDimensions.currency)', '💰 Currency',\n'tostring(customDimensions.sunId)', '🏢 SUNID',\n'tostring(customDimensions.companyName)', '🏢 Company Name',\n'tostring(customDimensions.paymentType)', '💳 Payment Type'\n]",
+            "value": "tostring(customDimensions.currency)",
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters - 9"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Payments_InitiationReview_Click_Submit'\n| where tostring(customDimensions.paymentType) in ({PaymentType}) or '*' in ({PaymentType})\n| where customDimensions.transactionStatus == 'Submitted'\n{OtherFilters}\n| extend SplitBy = {NotionalSplitBy}\n| extend Amount = todouble(customDimensions.amount)\n| summarize ['Total Notional'] = sum(Amount) by Day = bin(timestamp, 1d), SplitBy\n| order by Day asc",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Total Notional Over Time",
+        "color": "green",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "linechart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "Total Notional",
+              "color": "green"
+            },
+            {
+              "seriesName": "Payment Count",
+              "color": "blueDark"
+            }
+          ],
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true,
+                "minimumFractionDigits": 2,
+                "maximumFractionDigits": 2
+              }
+            }
+          }
+        }
+      },
+      "name": "query - 10"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Payments_InitiationReview_Click_Submit'\n| where tostring(customDimensions.paymentType) in ({PaymentType}) or '*' in ({PaymentType})\n| where customDimensions.transactionStatus == 'Submitted'\n{OtherFilters}\n| extend SplitBy = {NotionalSplitBy}\n| extend Amount = todouble(customDimensions.amount)\n| summarize ['Payment Count'] = count(),\n            ['Total Notional'] = sum(Amount),\n            ['Average Amount'] = avg(Amount),\n            ['Median Amount'] = percentile(Amount, 50),\n            ['95th Percentile'] = percentile(Amount, 95)\n            by SplitBy\n| order by ['Total Notional'] desc\n| project ['Group'] = strcat('🔹 ', SplitBy), ['Payment Count'], ['Total Notional'], ['Average Amount'], ['Median Amount'], ['95th Percentile']",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Notional Amount Details",
+        "exportFieldName": "Group",
+        "exportParameterName": "NotionalFilter",
+        "exportDefaultValue": "All",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Payment Count",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "blue",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Total Notional",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "green",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "Average Amount",
+              "formatter": 0,
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "Median Amount",
+              "formatter": 0,
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "95th Percentile",
+              "formatter": 0,
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            }
+          ],
+          "filter": true
+        }
+      },
+      "name": "query - 11"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Beneficiaries Saved Per Day\nDaily count of beneficiaries added or updated through payment submissions."
+      },
+      "name": "text - 12"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "f6a7b8c9-0d1e-2f3a-4b5c-6d7e8f9a0b1c",
+            "version": "KqlParameterItem/1.0",
+            "name": "BeneficiarySplitBy",
+            "type": 2,
+            "isRequired": true,
+            "query": "datatable(value:string, text:string)[\n'tostring(customDimensions.sunId)', '🏢 SUNID',\n'tostring(customDimensions.companyName)', '🏢 Company Name',\n'tostring(customDimensions.userId)', '👤 User ID',\n'tostring(customDimensions.branchId)', '🏪 Branch ID'\n]",
+            "value": "tostring(customDimensions.sunId)",
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters - 13"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Payments_InitiationReview_Click_Submit'\n| where customDimensions.transactionStatus == 'Submitted'\n{OtherFilters}\n| extend BeneficiariesAdded = toint(customDimensions.beneficiariesAdded)\n| extend BeneficiariesUpdated = toint(customDimensions.beneficiariesUpdated)\n| summarize ['Beneficiaries Added'] = sum(BeneficiariesAdded),\n            ['Beneficiaries Updated'] = sum(BeneficiariesUpdated),\n            ['Total Saved'] = sum(BeneficiariesAdded) + sum(BeneficiariesUpdated)\n            by Day = bin(timestamp, 1d)\n| order by Day asc",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Beneficiaries Saved Over Time",
+        "color": "orange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "areachart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "Beneficiaries Added",
+              "color": "greenDark"
+            },
+            {
+              "seriesName": "Beneficiaries Updated",
+              "color": "yellow"
+            },
+            {
+              "seriesName": "Total Saved",
+              "color": "orange"
+            }
+          ],
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true
+              }
+            }
+          }
+        }
+      },
+      "name": "query - 14"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Payments_InitiationReview_Click_Submit'\n| where customDimensions.transactionStatus == 'Submitted'\n{OtherFilters}\n| extend SplitBy = {BeneficiarySplitBy}\n| extend BeneficiariesAdded = toint(customDimensions.beneficiariesAdded)\n| extend BeneficiariesUpdated = toint(customDimensions.beneficiariesUpdated)\n| extend BeneficiariesCount = toint(customDimensions.beneficiariesCount)\n| summarize ['Beneficiaries Added'] = sum(BeneficiariesAdded),\n            ['Beneficiaries Updated'] = sum(BeneficiariesUpdated),\n            ['Total Saved'] = sum(BeneficiariesAdded) + sum(BeneficiariesUpdated),\n            ['Payment Count'] = count(),\n            ['Avg Beneficiary Count'] = avg(BeneficiariesCount),\n            ['Unique Beneficiaries'] = dcount(tostring(customDimensions.beneficiaryId))\n            by SplitBy\n| order by ['Total Saved'] desc\n| project ['Group'] = strcat('🔹 ', SplitBy), ['Beneficiaries Added'], ['Beneficiaries Updated'], ['Total Saved'], ['Payment Count'], ['Avg Beneficiary Count'], ['Unique Beneficiaries']",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Beneficiary Management Details",
+        "exportFieldName": "Group",
+        "exportParameterName": "BeneficiaryFilter",
+        "exportDefaultValue": "All",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Beneficiaries Added",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "green",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Beneficiaries Updated",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "yellow",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Total Saved",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "orange",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            },
+            {
+              "columnMatch": "Payment Count",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "blue",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Avg Beneficiary Count",
+              "formatter": 0,
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "minimumFractionDigits": 1,
+                  "maximumFractionDigits": 1
+                }
+              }
+            },
+            {
+              "columnMatch": "Unique Beneficiaries",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "purple",
+                "showIcon": true
+              }
+            }
+          ],
+          "filter": true
+        }
+      },
+      "name": "query - 15"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Payment Activity by Currency\nBreakdown of payment activity across different currencies."
+      },
+      "name": "text - 16"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\ncustomEvents\n| where timestamp >= start\n| where name == 'Payments_InitiationReview_Click_Submit'\n| where tostring(customDimensions.paymentType) in ({PaymentType}) or '*' in ({PaymentType})\n| where customDimensions.transactionStatus == 'Submitted'\n{OtherFilters}\n| extend Currency = tostring(customDimensions.currency)\n| extend Amount = todouble(customDimensions.amount)\n| summarize ['Payment Count'] = count(),\n            ['Total Amount'] = sum(Amount)\n            by Currency\n| order by ['Payment Count'] desc",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Payment Distribution by Currency",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "piechart"
+      },
+      "name": "query - 17"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## All Payment Metrics Combined\nCombined timeline view of all tracked payment metrics."
+      },
+      "name": "text - 18"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let start = startofday(ago({TimeRange:end} - {TimeRange:start}));\nlet wirePayments = customEvents\n| where timestamp >= start\n| where name == 'Payments_InitiationReview_Click_Submit'\n| where tostring(customDimensions.paymentType) in ({PaymentType}) or '*' in ({PaymentType})\n| where customDimensions.transactionStatus == 'Submitted'\n{OtherFilters}\n| summarize Value = count() by Day = bin(timestamp, 1d)\n| extend Metric = '💳 Wire Payments';\nlet notional = customEvents\n| where timestamp >= start\n| where name == 'Payments_InitiationReview_Click_Submit'\n| where tostring(customDimensions.paymentType) in ({PaymentType}) or '*' in ({PaymentType})\n| where customDimensions.transactionStatus == 'Submitted'\n{OtherFilters}\n| extend Amount = todouble(customDimensions.amount)\n| summarize Value = sum(Amount) / 1000000 by Day = bin(timestamp, 1d)\n| extend Metric = '💰 Total Notional (M)';\nlet beneficiaries = customEvents\n| where timestamp >= start\n| where name == 'Payments_InitiationReview_Click_Submit'\n| where customDimensions.transactionStatus == 'Submitted'\n{OtherFilters}\n| extend BeneficiariesAdded = toint(customDimensions.beneficiariesAdded)\n| extend BeneficiariesUpdated = toint(customDimensions.beneficiariesUpdated)\n| summarize Value = todouble(sum(BeneficiariesAdded) + sum(BeneficiariesUpdated)) by Day = bin(timestamp, 1d)\n| extend Metric = '👥 Beneficiaries Saved';\nunion wirePayments, notional, beneficiaries\n| order by Day asc",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "All Payment Metrics Timeline",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "linechart"
+      },
+      "name": "query - 19"
+    }
+  ],
+  "fallbackResourceIds": [
+    "${subscription_id}/resourceGroups/${resource_group_name}/providers/microsoft.insights/components/${application_insights_name}"
+  ],
+  "fromTemplateId": "custom-PaymentDashboard",
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
