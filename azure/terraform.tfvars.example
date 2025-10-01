@@ -1,0 +1,151 @@
+# Example Terraform Variable Configurations
+
+This file provides example configurations for different environments and use cases.
+
+## Development Environment
+
+```hcl
+# terraform.tfvars
+resource_group_name       = "rg-app-insights-dev"
+application_insights_name = "ai-react-app-dev"
+workbook_display_name     = "React App Dashboard - DEV"
+
+dashboard_title       = "🔧 React App Insights - Development"
+dashboard_description = "Development environment monitoring dashboard for debugging and testing."
+time_range_days       = 7  # Shorter range for dev
+
+# User Activity - More frequent checks in dev
+user_activity_title         = "🔧 DEV - User Activity"
+active_users_short_window   = "15m"
+active_users_short_label    = "15 min"
+active_users_short_minutes  = 15
+login_activity_days         = 7
+engagement_days             = 7
+
+tags = {
+  Environment = "development"
+  Project     = "react-app-insights"
+  CreatedBy   = "terraform"
+}
+```
+
+## Production Environment
+
+```hcl
+# terraform.tfvars
+resource_group_name       = "rg-app-insights-prod"
+application_insights_name = "ai-react-app-prod"
+workbook_display_name     = "React App Dashboard - PRODUCTION"
+
+dashboard_title       = "📊 React App Insights - Production"
+dashboard_description = "Production environment monitoring with performance tracking and error alerting."
+time_range_days       = 90  # Longer range for trend analysis
+
+# User Activity - Extended timeframes for production
+user_activity_title       = "📊 PROD - User Activity"
+login_activity_days       = 90
+engagement_days           = 90
+active_users_long_window  = "7d"
+active_users_long_label   = "Last 7 Days"
+active_users_long_hours   = 168
+
+tags = {
+  Environment = "production"
+  Project     = "react-app-insights"
+  CreatedBy   = "terraform"
+  CostCenter  = "engineering"
+}
+```
+
+## Staging Environment
+
+```hcl
+# terraform.tfvars
+resource_group_name       = "rg-app-insights-staging"
+application_insights_name = "ai-react-app-staging"
+workbook_display_name     = "React App Dashboard - STAGING"
+
+dashboard_title       = "🧪 React App Insights - Staging"
+dashboard_description = "Pre-production testing environment with comprehensive monitoring."
+time_range_days       = 30
+
+tags = {
+  Environment = "staging"
+  Project     = "react-app-insights"
+  CreatedBy   = "terraform"
+}
+```
+
+## Custom Branding Example
+
+```hcl
+# terraform.tfvars
+resource_group_name       = "rg-app-insights-prod"
+application_insights_name = "ai-react-app-prod"
+workbook_display_name     = "Acme Corp - Customer Portal"
+
+dashboard_title       = "Acme Corp - Customer Portal Analytics"
+dashboard_description = "Real-time monitoring and analytics for the Acme Corp customer-facing portal."
+time_range_days       = 60
+
+tags = {
+  Environment = "production"
+  Project     = "customer-portal"
+  CreatedBy   = "terraform"
+  Department  = "customer-success"
+  Owner       = "platform-team@acme.com"
+}
+```
+
+## Multi-Environment Deployment
+
+You can create separate `.tfvars` files for each environment:
+
+### File: `dev.tfvars`
+```hcl
+dashboard_title = "🔧 Development Dashboard"
+time_range_days = 7
+```
+
+### File: `staging.tfvars`
+```hcl
+dashboard_title = "🧪 Staging Dashboard"
+time_range_days = 30
+```
+
+### File: `prod.tfvars`
+```hcl
+dashboard_title = "📊 Production Dashboard"
+time_range_days = 90
+```
+
+### Usage
+
+```bash
+# Deploy to development
+terraform apply -var-file="dev.tfvars"
+
+# Deploy to staging
+terraform apply -var-file="staging.tfvars"
+
+# Deploy to production
+terraform apply -var-file="prod.tfvars"
+```
+
+## Command Line Override
+
+You can also override variables on the command line:
+
+```bash
+terraform apply \
+  -var="dashboard_title=Custom Dashboard" \
+  -var="time_range_days=45"
+```
+
+## Best Practices
+
+1. **Environment-specific files**: Use separate `.tfvars` files for different environments
+2. **Version control**: Commit `.tfvars.example` but add actual `.tfvars` to `.gitignore` if they contain sensitive values
+3. **Consistent naming**: Use consistent naming conventions across environments
+4. **Documentation**: Update variable descriptions when adding new template variables
+5. **Testing**: Always run `terraform plan` before `terraform apply` to preview changes

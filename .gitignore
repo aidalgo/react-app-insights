@@ -37,3 +37,12 @@ azure-deployment-output.json
 
 # OS generated files
 Thumbs.db
+
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# Custom ignores
+my-notes.txt

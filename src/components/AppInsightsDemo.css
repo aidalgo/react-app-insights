@@ -125,6 +125,67 @@
   transform: translateY(-2px);
 }
 
+/* KPI Section Styles */
+.kpi-section {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+  color: white;
+}
+
+.kpi-section h4 {
+  color: white;
+  margin-bottom: 0.5rem;
+}
+
+.kpi-section p {
+  margin-bottom: 1rem;
+  opacity: 0.9;
+}
+
+.kpi-buttons {
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.kpi-btn {
+  background: rgba(255, 255, 255, 0.9);
+  color: #333;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.kpi-btn:hover {
+  background: rgba(255, 255, 255, 1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.user-btn:hover {
+  border-left: 4px solid #28a745;
+}
+
+.company-btn:hover {
+  border-left: 4px solid #007bff;
+}
+
+.login-btn:hover {
+  border-left: 4px solid #6f42c1;
+}
+
+.wire-btn:hover {
+  border-left: 4px solid #fd7e14;
+}
+
+.td-new-btn:hover {
+  border-left: 4px solid #20c997;
+}
+
+.td-rollover-btn:hover {
+  border-left: 4px solid #17a2b8;
+}
+
 .demo-info {
   background: white;
   border-radius: 6px;
