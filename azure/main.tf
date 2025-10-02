@@ -126,3 +126,21 @@ resource "azurerm_application_insights_workbook" "combined_dashboard" {
 
   tags = var.tags
 }
+
+# Time Deposit Dashboard Workbook
+resource "azurerm_application_insights_workbook" "time_deposit_dashboard" {
+  name                = uuidv5("dns", "${var.resource_group_name}-${var.application_insights_name}-time-deposit-dashboard-workbook")
+  display_name        = "${var.workbook_display_name} - Time Deposit Dashboard"
+  location            = data.azurerm_application_insights.existing.location
+  resource_group_name = var.resource_group_name
+  category            = "workbook"
+  source_id           = lower(data.azurerm_application_insights.existing.id)
+
+  data_json = templatefile("${path.module}/workbook-time-deposit-dashboard-template.json.tftpl", {
+    subscription_id           = data.azurerm_application_insights.existing.id
+    resource_group_name       = var.resource_group_name
+    application_insights_name = var.application_insights_name
+  })
+
+  tags = var.tags
+}
