@@ -1,0 +1,512 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## Time Deposit Dashboard\n\nThis dashboard tracks Time Deposit (TD) bookings through the portal, including new TDs and rollovers. Monitor key metrics such as the number of TDs booked, total principal amounts, and average tenor.\n"
+      },
+      "name": "text - 0"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "593d7ebe-107d-4823-87dd-d020d2138611",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 2592000000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 1209600000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 5184000000
+                },
+                {
+                  "durationMs": 7776000000
+                }
+              ],
+              "allowCustom": true
+            },
+            "label": "Time Range"
+          },
+          {
+            "id": "25a6fdc1-ae28-4886-9a5c-90254deb6a3d",
+            "version": "KqlParameterItem/1.0",
+            "name": "TDType",
+            "type": 2,
+            "description": "Filter by TD type: New TDs, Rollovers, or All",
+            "isRequired": true,
+            "multiSelect": true,
+            "quote": "'",
+            "delimiter": ",",
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "jsonData": "[\n    { \"value\":\"MANAGE_INVESTMENTS_TimeDeposit_TimeDepositReview_Click_Submit_NewTimeDepositCreatedSuccessfully\", \"label\":\"New Time Deposits\", \"selected\":true },\n    { \"value\":\"MANAGE_INVESTMENTS_TimeDeposit_TimeDepositReview_Click_Submit_RolloverCreatedSuccessfully\", \"label\":\"Rollover Time Deposits\", \"selected\":true }\n]",
+            "label": "TD Type"
+          },
+          {
+            "id": "79126a9c-4ec6-4719-872a-f4a9b022e8f9",
+            "version": "KqlParameterItem/1.0",
+            "name": "OtherFilters",
+            "type": 1,
+            "description": "Additional KQL filter (e.g., | where customDimensions.branchId == '8801')",
+            "label": "Additional Filters"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters - 1"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ts = {TimeRange:end} - {TimeRange:start};\nlet start = startofday(ago(ts));\ncustomEvents\n| where timestamp >= start\n| where name in ({TDType})\n{OtherFilters}\n| extend principalAmount = todouble(tostring(customDimensions.principalAmount))\n| extend tenorInDays = toint(tostring(customDimensions.tenorInDays))\n| summarize \n    TDCount = count(),\n    TotalPrincipal = sum(principalAmount),\n    AvgTenor = avg(tenorInDays)\n| project \n    Metric1 = TDCount, \n    Metric2 = TotalPrincipal, \n    Metric3 = AvgTenor\n| evaluate narrow()\n| extend Title = case(\n    Column == 'Metric1', 'Total TDs Booked',\n    Column == 'Metric2', 'Total Principal Amount',\n    Column == 'Metric3', 'Average Tenor (Days)',\n    ''\n)\n| extend SubTitle = case(\n    Column == 'Metric1', '━━',\n    Column == 'Metric2', '━━',\n    Column == 'Metric3', '━━',\n    ''\n)\n| project Title, Metric = Value, SubTitle",
+        "size": 3,
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Title",
+            "formatter": 1,
+            "formatOptions": {
+              "showIcon": true
+            }
+          },
+          "subtitleContent": {
+            "columnMatch": "SubTitle",
+            "formatOptions": {
+              "showIcon": true
+            }
+          },
+          "leftContent": {
+            "columnMatch": "Metric",
+            "formatter": 12,
+            "formatOptions": {
+              "min": 0,
+              "showIcon": true
+            },
+            "numberFormat": {
+              "unit": 17,
+              "options": {
+                "style": "decimal",
+                "maximumFractionDigits": 2,
+                "maximumSignificantDigits": 3
+              }
+            }
+          },
+          "showBorder": false
+        }
+      },
+      "name": "query - 2"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Daily Time Deposit Metrics\nView TDs booked per day with principal amounts and average tenor."
+      },
+      "name": "text - 3"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ts = {TimeRange:end} - {TimeRange:start};\nlet start = startofday(ago(ts));\ncustomEvents\n| where timestamp >= start\n| where name in ({TDType})\n{OtherFilters}\n| extend principalAmount = todouble(tostring(customDimensions.principalAmount))\n| extend tenorInDays = toint(tostring(customDimensions.tenorInDays))\n| summarize \n    ['TDs Booked'] = count(),\n    ['Total Principal'] = sum(principalAmount),\n    ['Average Tenor (Days)'] = avg(tenorInDays)\n    by Day = bin(timestamp, 1d)\n| order by Day asc",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "TDs Booked Per Day",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "linechart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "TDs Booked",
+              "color": "blue"
+            },
+            {
+              "seriesName": "Total Principal",
+              "color": "green"
+            },
+            {
+              "seriesName": "Average Tenor (Days)",
+              "color": "orange"
+            }
+          ],
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true
+              }
+            }
+          }
+        }
+      },
+      "name": "query - 4"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "25e8351b-5036-4438-86dc-10eb4151e014",
+            "version": "KqlParameterItem/1.0",
+            "name": "SplitBy",
+            "type": 2,
+            "isRequired": true,
+            "typeSettings": {
+              "additionalResourceOptions": []
+            },
+            "jsonData": "[\n    { \"value\":\"name\", \"text\":\"📛 TD Type\", \"selected\":true },\n    { \"value\":\"customDimensions['branchId']\", \"text\":\"🏦 Branch ID\", \"selected\":false },\n    { \"value\":\"customDimensions['sunId']\", \"text\":\"👤 Sun ID\", \"selected\":false },\n    { \"value\":\"customDimensions['tenorType']\", \"text\":\"📅 Tenor Type\", \"selected\":false },\n    { \"value\":\"customDimensions['rolloverType']\", \"text\":\"🔄 Rollover Type\", \"selected\":false },\n    { \"value\":\"customDimensions['interestAction']\", \"text\":\"💰 Interest Action\", \"selected\":false },\n    { \"value\":\"cloud_RoleInstance\", \"text\":\"🖥️ Machine\", \"selected\":false },\n    { \"value\":\"client_CountryOrRegion\", \"text\":\"📍 Country or Region\", \"selected\":false },\n    { \"value\":\"client_City\", \"text\":\"📍 City\", \"selected\":false }\n]",
+            "label": "Split By"
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters - 5"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ts = {TimeRange:end} - {TimeRange:start};\nlet start = startofday(ago(ts));\ncustomEvents\n| where timestamp >= start\n| where name in ({TDType})\n{OtherFilters}\n| extend principalAmount = todouble(tostring(customDimensions.principalAmount))\n| extend tenorInDays = toint(tostring(customDimensions.tenorInDays))\n| extend Dim1 = tostring({SplitBy})\n| summarize \n    ['TD Count'] = count(),\n    ['Total Principal'] = sum(principalAmount),\n    ['Avg Principal'] = avg(principalAmount),\n    ['Average Tenor (Days)'] = avg(tenorInDays),\n    ['Unique Users'] = dcount(tostring(customDimensions.sunId)),\n    ['Unique Sessions'] = dcount(tostring(customDimensions.sessionId))\n    by Dim1\n| extend DisplayDim = strcat('🔹 ', Dim1)\n| order by ['TD Count'] desc\n| project ['Breakdown'] = DisplayDim, Values = Dim1, ['TD Count'], ['Total Principal'], ['Avg Principal'], ['Average Tenor (Days)'], ['Unique Users'], ['Unique Sessions']",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Time Deposit Details by Dimension",
+        "exportFieldName": "Values",
+        "exportParameterName": "Filter",
+        "exportDefaultValue": "All",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Values",
+              "formatter": 5,
+              "formatOptions": {
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "TD Count",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "blue",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            },
+            {
+              "columnMatch": "Total Principal",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "green",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "Avg Principal",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "greenDark",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "Average Tenor (Days)",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "orange",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "maximumFractionDigits": 1
+                }
+              }
+            },
+            {
+              "columnMatch": "Unique Users",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "purple",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            },
+            {
+              "columnMatch": "Unique Sessions",
+              "formatter": 3,
+              "formatOptions": {
+                "min": 0,
+                "palette": "gray",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 17,
+                "options": {
+                  "style": "decimal"
+                }
+              }
+            }
+          ],
+          "filter": true
+        }
+      },
+      "name": "query - 6"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Trend Analysis\nSelect a row from the table above to see trends for that specific dimension value."
+      },
+      "name": "text - 7"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ts = {TimeRange:end} - {TimeRange:start};\nlet start = startofday(ago(ts));\ncustomEvents\n| where timestamp >= start\n| where name in ({TDType})\n{OtherFilters}\n| where '{Filter}' == 'All' or {SplitBy} == '{Filter}'\n| extend principalAmount = todouble(tostring(customDimensions.principalAmount))\n| summarize [\"{Filter}\"] = count() by Day = bin(timestamp, 1d)\n| order by Day asc\n| render timechart",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "TD Count Trend",
+        "color": "blue",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "areachart"
+      },
+      "name": "query - 8"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ts = {TimeRange:end} - {TimeRange:start};\nlet start = startofday(ago(ts));\ncustomEvents\n| where timestamp >= start\n| where name in ({TDType})\n{OtherFilters}\n| where '{Filter}' == 'All' or {SplitBy} == '{Filter}'\n| extend principalAmount = todouble(tostring(customDimensions.principalAmount))\n| summarize ['Total Principal'] = sum(principalAmount) by Day = bin(timestamp, 1d)\n| order by Day asc\n| render timechart",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Total Principal Trend",
+        "color": "green",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "areachart",
+        "chartSettings": {
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": true,
+                "minimumFractionDigits": 2,
+                "maximumFractionDigits": 2
+              }
+            }
+          }
+        }
+      },
+      "name": "query - 9"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ts = {TimeRange:end} - {TimeRange:start};\nlet start = startofday(ago(ts));\ncustomEvents\n| where timestamp >= start\n| where name in ({TDType})\n{OtherFilters}\n| where '{Filter}' == 'All' or {SplitBy} == '{Filter}'\n| extend tenorInDays = toint(tostring(customDimensions.tenorInDays))\n| summarize ['Average Tenor (Days)'] = avg(tenorInDays) by Day = bin(timestamp, 1d)\n| order by Day asc\n| render timechart",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Average Tenor Trend",
+        "color": "orange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "linechart",
+        "chartSettings": {
+          "ySettings": {
+            "numberFormatSettings": {
+              "unit": 0,
+              "options": {
+                "style": "decimal",
+                "useGrouping": false,
+                "minimumFractionDigits": 1,
+                "maximumFractionDigits": 1
+              }
+            }
+          }
+        }
+      },
+      "name": "query - 10"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Branch Performance\nTop branches by TD count and principal amount."
+      },
+      "name": "text - 11"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ts = {TimeRange:end} - {TimeRange:start};\nlet start = startofday(ago(ts));\ncustomEvents\n| where timestamp >= start\n| where name in ({TDType})\n{OtherFilters}\n| extend principalAmount = todouble(tostring(customDimensions.principalAmount))\n| extend branchId = tostring(customDimensions.branchId)\n| summarize \n    ['TD Count'] = count(),\n    ['Total Principal'] = sum(principalAmount),\n    ['Unique Users'] = dcount(tostring(customDimensions.sunId))\n    by branchId\n| order by ['TD Count'] desc\n| take 20\n| project ['Branch ID'] = branchId, ['TD Count'], ['Total Principal'], ['Unique Users']",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "Top 20 Branches by TD Volume",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "TD Count",
+              "formatter": 8,
+              "formatOptions": {
+                "min": 0,
+                "palette": "blue",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Total Principal",
+              "formatter": 8,
+              "formatOptions": {
+                "min": 0,
+                "palette": "green",
+                "showIcon": true
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 2
+                }
+              }
+            },
+            {
+              "columnMatch": "Unique Users",
+              "formatter": 8,
+              "formatOptions": {
+                "min": 0,
+                "palette": "purple",
+                "showIcon": true
+              }
+            }
+          ]
+        }
+      },
+      "name": "query - 12"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Tenor Distribution\nDistribution of TDs by tenor duration."
+      },
+      "name": "text - 13"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let ts = {TimeRange:end} - {TimeRange:start};\nlet start = startofday(ago(ts));\ncustomEvents\n| where timestamp >= start\n| where name in ({TDType})\n{OtherFilters}\n| extend tenorInDays = toint(tostring(customDimensions.tenorInDays))\n| extend principalAmount = todouble(tostring(customDimensions.principalAmount))\n| extend TenorBucket = case(\n    tenorInDays <= 30, \"0-30 days\",\n    tenorInDays <= 90, \"31-90 days\",\n    tenorInDays <= 180, \"91-180 days\",\n    tenorInDays <= 365, \"181-365 days\",\n    \"365+ days\"\n)\n| summarize \n    ['TD Count'] = count(),\n    ['Total Principal'] = sum(principalAmount),\n    ['Avg Principal'] = avg(principalAmount)\n    by TenorBucket\n| order by ['TD Count'] desc\n| project ['Tenor Range'] = TenorBucket, ['TD Count'], ['Total Principal'], ['Avg Principal']",
+        "size": 0,
+        "aggregation": 5,
+        "showAnalytics": true,
+        "title": "TD Distribution by Tenor Range",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "piechart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "0-30 days",
+              "color": "blue"
+            },
+            {
+              "seriesName": "31-90 days",
+              "color": "green"
+            },
+            {
+              "seriesName": "91-180 days",
+              "color": "orange"
+            },
+            {
+              "seriesName": "181-365 days",
+              "color": "red"
+            },
+            {
+              "seriesName": "365+ days",
+              "color": "purple"
+            }
+          ]
+        }
+      },
+      "name": "query - 14"
+    }
+  ],
+  "fallbackResourceIds": [
+    "${subscription_id}/resourceGroups/${resource_group_name}/providers/microsoft.insights/components/${application_insights_name}"
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
